@@ -1,17 +1,30 @@
-// import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as AwsPractitionerJsAppBackend from '../lib/aws-practitioner-js-app-backend-stack';
+import { getProductsList } from '../lib/product-service/getProductsList';
+import { getProductsById } from '../lib/product-service/getProductsById';
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/aws-practitioner-js-app-backend-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new AwsPractitionerJsAppBackend.AwsPractitionerJsAppBackendStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
+describe('getProductsList', () => {
+  it('should return all products with status 200', async () => {
+    const result = await getProductsList();
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThan(0);
+  });
+});
 
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
+describe('getProductsById', () => {
+  it('should return a product with status 200 if found', async () => {
+    const event = { pathParameters: { productId: '1' } };
+    const result = await getProductsById(event);
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body.id).toBe('1');
+  });
+
+  it('should return 404 if product not found', async () => {
+    const event = { pathParameters: { productId: '999' } };
+    const result = await getProductsById(event);
+    expect(result.statusCode).toBe(404);
+    const body = JSON.parse(result.body);
+    expect(body.message).toBe('Product not found');
+  });
 });
