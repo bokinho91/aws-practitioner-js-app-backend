@@ -44,6 +44,23 @@ export const getProductsById = async (event: GetProductsByIdEvent = {}) => {
   try {
     const result = await client.send(new GetItemCommand(params));
     product = result.Item ? unmarshall(result.Item) : null;
+
+    if (product) {
+      let count = 0;
+      try {
+        const stockResult = await client.send(new GetItemCommand({
+          TableName: 'stock',
+          Key: { product_id: { S: product.id } }
+        }));
+        if (stockResult.Item) {
+          const stock = unmarshall(stockResult.Item);
+          count = stock.count;
+        }
+      } catch (err) {
+        // If error, leave count as 0
+      }
+      product = { ...product, count };
+    }
   } catch (error) {
     return {
       statusCode: 500,
