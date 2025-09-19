@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib';
-import { ShopApiLambdaStack } from '../lib/ShopApiLambdaStack';
+const cdk = require('aws-cdk-lib');
+const { ShopApiLambdaStack } = require('../lib/ShopApiLambdaStack');
 
 const app = new cdk.App();
 new ShopApiLambdaStack(app, 'ShopApiLambdaStack', {});
