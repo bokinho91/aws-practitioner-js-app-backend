@@ -1,4 +1,9 @@
 import { createProduct, getProductsList, getProductsById } from "../lib/product-service/productService.js";
+import { importProductsHandler } from '../lib/import-service/importProductsFile';
+import { S3Client } from '@aws-sdk/client-s3';
+const { mockClient } = require('aws-sdk-client-mock');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
 describe('getProductsList', () => {
   it('should return all products with status 200', async () => {
     const result = await getProductsList();
@@ -70,3 +75,54 @@ describe('createProduct', () => {
   });
 });
 
+
+const s3Mock = mockClient(S3Client);
+
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: jest.fn(),
+}));
+
+describe('importProductsHandler', () => {
+  const s3Mock = mockClient(S3Client);
+  beforeEach(() => {
+    s3Mock.reset();
+    getSignedUrl.mockReset();
+  });
+
+  it('should return a signed URL for a valid file name', async () => {
+    getSignedUrl.mockResolvedValue('https://signed-url');
+
+    const event = {
+      queryStringParameters: { name: 'test.csv' }
+    };
+
+    const result = await importProductsHandler(event);
+
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).url).toBe('https://signed-url');
+  });
+
+  it('should return 400 if file name is missing', async () => {
+    const event = {
+      queryStringParameters: {}
+    };
+
+    const result = await importProductsHandler(event);
+
+    expect(result.statusCode).toBe(400);
+    expect(JSON.parse(result.body).message).toBe('Missing required query parameter: name');
+  });
+
+  it('should return 500 if getSignedUrl throws', async () => {
+    getSignedUrl.mockRejectedValue(new Error('fail'));
+
+    const event = {
+      queryStringParameters: { name: 'test.csv' }
+    };
+
+    const result = await importProductsHandler(event);
+
+    expect(result.statusCode).toBe(500);
+    expect(JSON.parse(result.body).message).toBe('Failed to get signed URL');
+  });
+});

@@ -16,7 +16,7 @@ export class ShopApiLambdaStack extends cdk.Stack {
 
     const getProductsListLambda = new lambda.Function(this, 'getProductsList', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      memorySize: 1024,
+      memorySize: 512,
       timeout: cdk.Duration.seconds(5),
       handler: 'productService.getProductsList',
       code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
@@ -37,7 +37,7 @@ export class ShopApiLambdaStack extends cdk.Stack {
 
     const getProductsByIdLambda = new lambda.Function(this, 'getProductsById', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      memorySize: 1024,
+      memorySize: 512,
       timeout: cdk.Duration.seconds(5),
       handler: 'productService.getProductsById',
       code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
@@ -49,7 +49,7 @@ export class ShopApiLambdaStack extends cdk.Stack {
 
     const createProductLambda = new lambda.Function(this, 'createProduct', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      memorySize: 1024,
+      memorySize: 512,
       timeout: cdk.Duration.seconds(5),
       handler: 'productService.createProduct',
       code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
