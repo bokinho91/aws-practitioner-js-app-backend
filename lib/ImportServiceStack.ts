@@ -45,7 +45,7 @@ export class ImportServiceStack extends cdk.Stack {
     bucket.grantRead(importFileParser);
     bucket.addCorsRule({
       allowedMethods: [s3.HttpMethods.PUT],
-      allowedOrigins: ['http://localhost:3000'],
+      allowedOrigins: ['http://localhost:3000', 'https://d2d6g4sqsxabi.cloudfront.net'],
       allowedHeaders: ['*'],
     });
 
