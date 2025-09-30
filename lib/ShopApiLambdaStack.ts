@@ -2,9 +2,11 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from 'aws-cdk-lib';
+import * as sqs from "aws-cdk-lib/aws-sqs";
 
 import { Construct } from 'constructs';
 import path = require('path');
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 
 export class ShopApiLambdaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -13,33 +15,12 @@ export class ShopApiLambdaStack extends cdk.Stack {
     const PRODUCTS_TABLE_NAME = "products";
     const STOCK_TABLE_NAME = "stock";
 
-
+    // Lambdas
     const getProductsListLambda = new lambda.Function(this, 'getProductsList', {
       runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 512,
       timeout: cdk.Duration.seconds(5),
       handler: 'productService.getProductsList',
-      code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
-      environment: {
-        PRODUCTS_TABLE_NAME,
-        STOCK_TABLE_NAME,
-      },
-    });
-
-    getProductsListLambda.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['dynamodb:Scan', 'dynamodb:GetItem'],
-      resources: [
-        `arn:aws:dynamodb:${this.region}:${this.account}:table/${PRODUCTS_TABLE_NAME}`,
-        `arn:aws:dynamodb:${this.region}:${this.account}:table/${STOCK_TABLE_NAME}`,
-      ],
-    }));
-
-    const getProductsByIdLambda = new lambda.Function(this, 'getProductsById', {
-      runtime: lambda.Runtime.NODEJS_20_X,
-      memorySize: 512,
-      timeout: cdk.Duration.seconds(5),
-      handler: 'productService.getProductsById',
       code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
       environment: {
         PRODUCTS_TABLE_NAME,
@@ -59,6 +40,46 @@ export class ShopApiLambdaStack extends cdk.Stack {
       }
     });
 
+    const getProductsByIdLambda = new lambda.Function(this, 'getProductsById', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(5),
+      handler: 'productService.getProductsById',
+      code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
+      environment: {
+        PRODUCTS_TABLE_NAME,
+        STOCK_TABLE_NAME,
+      },
+    });
+
+    const catalogBatchProcessLambda = new lambda.Function(this, 'catalogBatchProcess', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(5),
+      handler: 'productService.catalogBatchProcess',
+      code: lambda.Code.fromAsset(path.join(__dirname, './product-service'))
+    })
+
+    // Permissions
+
+    catalogBatchProcessLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['dynamodb:PutItem'],
+      resources: [
+        `arn:aws:dynamodb:${this.region}:${this.account}:table/${PRODUCTS_TABLE_NAME}`,
+        `arn:aws:dynamodb:${this.region}:${this.account}:table/${STOCK_TABLE_NAME}`,
+      ],
+    }));
+
+    getProductsListLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['dynamodb:Scan', 'dynamodb:GetItem'],
+      resources: [
+        `arn:aws:dynamodb:${this.region}:${this.account}:table/${PRODUCTS_TABLE_NAME}`,
+        `arn:aws:dynamodb:${this.region}:${this.account}:table/${STOCK_TABLE_NAME}`,
+      ],
+    }));
+
     createProductLambda.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['dynamodb:PutItem'],
@@ -77,6 +98,11 @@ export class ShopApiLambdaStack extends cdk.Stack {
       ],
     }));
 
+    // Events
+    const catalogItemsQueue = new sqs.Queue(this, "catalog-items-queue");
+    catalogBatchProcessLambda.addEventSource(new SqsEventSource(catalogItemsQueue, { batchSize: 5 }));
+
+    // API Gateway
     const api = new apigateway.RestApi(this, "product-service-api", {
       restApiName: "Product Service API",
       description: "API for Product Service endpoints.",
