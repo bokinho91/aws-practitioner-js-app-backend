@@ -4,11 +4,14 @@ import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import { Construct } from 'constructs';
-
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class ImportServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const queueUrl = cdk.Fn.importValue('CatalogItemsQueueUrl');
+    const queueArn = cdk.Fn.importValue('CatalogItemsQueueArn');
 
     const bucket = new s3.Bucket(this, 'ImportBucket', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -34,6 +37,7 @@ export class ImportServiceStack extends cdk.Stack {
       code: lambda.Code.fromAsset('lib/import-service'),
       environment: {
         BUCKET_NAME: bucket.bucketName,
+        SQS_URL: queueUrl,
       },
     });
 
@@ -49,6 +53,11 @@ export class ImportServiceStack extends cdk.Stack {
       allowedHeaders: ['*'],
     });
 
+    importFileParser.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['sqs:SendMessage'],
+      resources: [queueArn],
+    }));
 
     bucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
@@ -56,7 +65,7 @@ export class ImportServiceStack extends cdk.Stack {
       { prefix: 'uploaded/' }
     );
 
-
+    // API Gateway
     const api = new apigateway.RestApi(this, 'ImportApi', {
       restApiName: 'Import Service',
       deployOptions: {

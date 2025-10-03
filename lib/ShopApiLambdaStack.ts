@@ -3,10 +3,12 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from 'aws-cdk-lib';
 import * as sqs from "aws-cdk-lib/aws-sqs";
-
+import * as sns from "aws-cdk-lib/aws-sns";
 import { Construct } from 'constructs';
 import path = require('path');
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 
 export class ShopApiLambdaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -52,15 +54,28 @@ export class ShopApiLambdaStack extends cdk.Stack {
       },
     });
 
+    const createProductTopic = new sns.Topic(this, "create-product-topic", {
+      topicName: 'createProductTopic'
+    });
+
     const catalogBatchProcessLambda = new lambda.Function(this, 'catalogBatchProcess', {
       runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 512,
       timeout: cdk.Duration.seconds(5),
       handler: 'productService.catalogBatchProcess',
-      code: lambda.Code.fromAsset(path.join(__dirname, './product-service'))
+      code: lambda.Code.fromAsset(path.join(__dirname, './product-service')),
+      environment: {
+        SNS_TOPIC_ARN: createProductTopic.topicArn
+      }
     })
 
+
     // Permissions
+    catalogBatchProcessLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['sns:Publish'],
+      resources: [createProductTopic.topicArn],
+    }));
 
     catalogBatchProcessLambda.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
@@ -98,9 +113,29 @@ export class ShopApiLambdaStack extends cdk.Stack {
       ],
     }));
 
+
     // Events
-    const catalogItemsQueue = new sqs.Queue(this, "catalog-items-queue");
+    const catalogItemsQueue = new sqs.Queue(this, "catalog-items-queue", {
+      queueName: 'catalogItemsQueue'
+    });
     catalogBatchProcessLambda.addEventSource(new SqsEventSource(catalogItemsQueue, { batchSize: 5 }));
+
+    catalogBatchProcessLambda.addEventSource(new SnsEventSource(createProductTopic));
+
+    createProductTopic.addSubscription(new sns_subscriptions.EmailSubscription('boris.vujakovic@gmail.com'))
+
+
+    // Output
+    new cdk.CfnOutput(this, 'CatalogItemsQueueUrl', {
+      value: catalogItemsQueue.queueUrl,
+      exportName: 'CatalogItemsQueueUrl',
+    });
+
+    new cdk.CfnOutput(this, 'CatalogItemsQueueArn', {
+      value: catalogItemsQueue.queueArn,
+      exportName: 'CatalogItemsQueueArn',
+    });
+
 
     // API Gateway
     const api = new apigateway.RestApi(this, "product-service-api", {

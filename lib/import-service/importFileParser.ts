@@ -1,13 +1,20 @@
 const { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
-
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
 export const importFileHandler = async (event: any) => {
   console.log('Lambda triggered, event:', JSON.stringify(event));
 
   const s3 = new S3Client({});
+  const sqs = new SQSClient({});
   const bucket = process.env.BUCKET_NAME;
+  const queueUrl = process.env.SQS_URL;
+
+  if (!queueUrl) {
+    console.error('SQS_URL environment variable is not set');
+    return { statusCode: 500, body: 'SQS_URL not configured' };
+  }
 
   function toNodeReadable (body: any) {
     return typeof body?.pipe === 'function' ? body : Readable.fromWeb(body);
@@ -34,17 +41,29 @@ export const importFileHandler = async (event: any) => {
     const body = await getS3ObjectStream(bucket, key);
     const stream = toNodeReadable(body);
 
-    const results: any[] = [];
+
+    const csvRecords: any[] = [];
     await new Promise((resolve, reject) => {
       stream
         .pipe(csv())
-        .on('data', (data: any) => results.push(data))
+        .on('data', (data: any) => {
+          csvRecords.push(data);
+        })
         .on('end', resolve)
         .on('error', reject);
     });
 
-    console.log('Parsed CSV as JSON:', JSON.stringify(results));
-
+    for (const csvRecord of csvRecords) {
+      try {
+        console.log('Sending record to SQS:', csvRecord.title || 'Record');
+        await sqs.send(new SendMessageCommand({
+          QueueUrl: queueUrl,
+          MessageBody: JSON.stringify(csvRecord),
+        }));
+      } catch (error) {
+        console.error('Error sending message to SQS:', error);
+      }
+    }
 
     const parsedKey = key.replace(/^uploaded\//, 'parsed/');
     try {
