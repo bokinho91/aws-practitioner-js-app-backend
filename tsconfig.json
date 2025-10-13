@@ -1,8 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["src/*"]
+    },
+  "module": "commonjs",
+  "moduleResolution": "node",
     "lib": [
       "es2022"
     ],
@@ -27,6 +31,9 @@
   },
   "exclude": [
     "node_modules",
-    "cdk.out"
+    "cdk.out",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "shop-react-redux-cloudfront"
   ]
 }
