@@ -12,6 +12,7 @@ export class ImportServiceStack extends cdk.Stack {
 
     const queueUrl = cdk.Fn.importValue('CatalogItemsQueueUrl');
     const queueArn = cdk.Fn.importValue('CatalogItemsQueueArn');
+    const basicAuthorizerArn = cdk.Fn.importValue('BasicAuthorizerArn');
 
     const bucket = new s3.Bucket(this, 'ImportBucket', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -73,7 +74,55 @@ export class ImportServiceStack extends cdk.Stack {
       }
     });
 
+    // Create Lambda authorizer - using REQUEST type for better CORS control
+    const authorizer = new apigateway.RequestAuthorizer(this, 'ImportAuthorizer', {
+      handler: lambda.Function.fromFunctionArn(this, 'BasicAuthorizerFunction', basicAuthorizerArn),
+      identitySources: ['method.request.header.Authorization'],
+      authorizerName: 'basicAuthorizer'
+    });
+
     const importResource = api.root.addResource('import');
-    importResource.addMethod('GET', new apigateway.LambdaIntegration(importProductsFile));
+    importResource.addMethod('GET', new apigateway.LambdaIntegration(importProductsFile), {
+      authorizer: authorizer
+    });
+
+    // Add CORS support
+    importResource.addCorsPreflight({
+      allowOrigins: ['https://d2d6g4sqsxabi.cloudfront.net', 'http://localhost:3000'],
+      allowMethods: ['GET', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
+      allowCredentials: true
+    });
+
+    // Add Gateway Responses for CORS on authorization errors
+    api.addGatewayResponse('Unauthorized', {
+      type: apigateway.ResponseType.UNAUTHORIZED,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': "'*'",
+        'Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        'Access-Control-Allow-Methods': "'GET,OPTIONS'",
+        'Access-Control-Allow-Credentials': "'false'"
+      }
+    });
+
+    api.addGatewayResponse('AccessDenied', {
+      type: apigateway.ResponseType.ACCESS_DENIED,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': "'*'",
+        'Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        'Access-Control-Allow-Methods': "'GET,OPTIONS'",
+        'Access-Control-Allow-Credentials': "'false'"
+      }
+    });
+
+    api.addGatewayResponse('Forbidden', {
+      type: apigateway.ResponseType.RESOURCE_NOT_FOUND,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': "'*'",
+        'Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        'Access-Control-Allow-Methods': "'GET,OPTIONS'",
+        'Access-Control-Allow-Credentials': "'false'"
+      }
+    });
   }
 }
