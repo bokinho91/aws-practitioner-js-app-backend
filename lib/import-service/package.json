@@ -1,0 +1,8 @@
+{
+  "name": "import-service-lambda",
+  "version": "1.0.0",
+  "main": "importFileParser.js",
+  "dependencies": {
+    "csv-parser": "^3.2.0"
+  }
+}

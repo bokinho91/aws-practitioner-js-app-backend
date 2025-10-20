@@ -1,0 +1,16 @@
+{
+  "name": "product-service",
+  "version": "1.0.0",
+  "main": "createProduct.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "types": "./createProduct.d.ts",
+  "description": "",
+  "dependencies": {
+    "uuid": "^8.3.2"
+  }
+}

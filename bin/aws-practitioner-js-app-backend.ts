@@ -1,20 +1,10 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib';
-import { AwsPractitionerJsAppBackendStack } from '../lib/aws-practitioner-js-app-backend-stack';
+const cdk = require('aws-cdk-lib');
+import { AuthorizerStack } from "../lib/AuthorizerStack";
+const { ShopApiLambdaStack } = require('../lib/ShopApiLambdaStack');
+const { ImportServiceStack } = require("../lib/ImportServiceStack");
 
 const app = new cdk.App();
-new AwsPractitionerJsAppBackendStack(app, 'AwsPractitionerJsAppBackendStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
-
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});
+const authStack = new AuthorizerStack(app, 'AuthorizerStack', {});
+const shopApiStack = new ShopApiLambdaStack(app, 'ShopApiLambdaStack', {});
+const importServiceStack = new ImportServiceStack(app, 'ImportServiceStack', { bucketName: 'import-service-bucket' }).addDependency(authStack);
